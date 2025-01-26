@@ -87,7 +87,7 @@ namespace SimpleWWWServer
 
                 if (requestLine.Length < 3)
                 {
-                    RedirectToCatErrorPage(stream, 400);
+                    RedirectToErrorPage(stream, 400,baseDir);
                     return;
                 }
 
@@ -96,7 +96,7 @@ namespace SimpleWWWServer
 
                 if (method != "GET" && method != "HEAD")
                 {
-                    RedirectToCatErrorPage(stream, 405);
+                    RedirectToErrorPage(stream, 405,baseDir);
                     return;
                 }
 
@@ -108,7 +108,7 @@ namespace SimpleWWWServer
                 string fileExtension = Path.GetExtension(sanitizedPath).ToLower();
                 if (!File.Exists(sanitizedPath) || Array.IndexOf(allowedExtensions, fileExtension) == -1)
                 {
-                    RedirectToCatErrorPage(stream,404);
+                    RedirectToErrorPage(stream,404,baseDir);
                     return;
                 }
 
@@ -126,40 +126,36 @@ namespace SimpleWWWServer
             }
         }
 
-        static void RedirectToCatErrorPage(NetworkStream stream, int statusCode)
+        static void RedirectToErrorPage(NetworkStream stream, int statusCode,string baseDir)
         {
-            string errorPage = $"<html><head><meta http-equiv='refresh' content='0; url=https://http.cat/{statusCode}'></head><body></body></html>";
-            byte[] body = Encoding.UTF8.GetBytes(errorPage);
+            var path = Path.Combine(baseDir, "errorpages", statusCode.ToString()+".html");
+            byte[] body;
+            string contentType = GetContentType(path);
+            if (!File.Exists(path))
+            {
+                string errorPage = $"<html><head></head><body>ERROR: {statusCode}</body></html>";
+                body = Encoding.UTF8.GetBytes(errorPage);
+            }
+            else
+                body = File.ReadAllBytes(path);
 
-            StringBuilder response = new StringBuilder();
-            response.AppendLine($"HTTP/1.1 {statusCode} Error");
-            response.AppendLine("Content-Type: text/html");
-            response.AppendLine($"Content-Length: {body.Length}");
-            response.AppendLine();
-
-            byte[] headers = Encoding.UTF8.GetBytes(response.ToString());
-            stream.Write(headers, 0, headers.Length);
-            stream.Write(body, 0, body.Length);
+            SendResponse(stream, statusCode, "Error", body, contentType);
         }
 
-        static void SendResponse(NetworkStream stream, int statusCode, string statusMessage, byte[] body = null, string contentType = "text/plain")
+        static void SendResponse(NetworkStream stream, int statusCode, string statusMessage, byte[] body = null!, string contentType = "text/plain")
         {
             StringBuilder response = new StringBuilder();
             response.AppendLine($"HTTP/1.1 {statusCode} {statusMessage}");
             response.AppendLine($"Content-Type: {contentType}");
             if (body != null)
-            {
                 response.AppendLine($"Content-Length: {body.Length}");
-            }
             response.AppendLine();
 
             byte[] headers = Encoding.UTF8.GetBytes(response.ToString());
             stream.Write(headers, 0, headers.Length);
 
             if (body != null)
-            {
                 stream.Write(body, 0, body.Length);
-            }
         }
 
         static string GetContentType(string filePath)
