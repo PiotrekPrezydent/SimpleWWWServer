@@ -113,12 +113,10 @@ namespace SimpleWWWServer
                 {
                     string indexPath = Path.Combine(sanitizedPath, "index.html");
                     if (File.Exists(indexPath))
-                    {
                         sanitizedPath = indexPath;
-                    }
                     else
                     {
-                        SendDirectoryListing(stream, sanitizedPath, path);
+                        RedirectToErrorPage(stream, 404, baseDir);
                         return;
                     }
                 }
@@ -142,30 +140,6 @@ namespace SimpleWWWServer
             {
                 client.Close();
             }
-        }
-
-        static void SendDirectoryListing(NetworkStream stream, string directoryPath, string requestPath)
-        {
-            StringBuilder response = new StringBuilder();
-            response.AppendLine("<html><head><title>Index of " + requestPath + "</title></head><body>");
-            response.AppendLine("<h1>Index of " + requestPath + "</h1><ul>");
-
-            foreach (var dir in Directory.GetDirectories(directoryPath))
-            {
-                string dirName = Path.GetFileName(dir);
-                response.AppendLine($"<li><a href=\"{requestPath}/{dirName}/\">{dirName}/</a></li>");
-            }
-
-            foreach (var file in Directory.GetFiles(directoryPath))
-            {
-                string fileName = Path.GetFileName(file);
-                response.AppendLine($"<li><a href=\"{requestPath}/{fileName}\">{fileName}</a></li>");
-            }
-
-            response.AppendLine("</ul></body></html>");
-
-            byte[] body = Encoding.UTF8.GetBytes(response.ToString());
-            SendResponse(stream, 200, "OK", body, "text/html");
         }
 
         static void RedirectToErrorPage(NetworkStream stream, int statusCode,string baseDir)
