@@ -163,14 +163,44 @@ namespace SimpleWWWServer
             string extension = Path.GetExtension(filePath).ToLower();
             return extension switch
             {
+                // Dokumenty
                 ".html" => "text/html",
                 ".css" => "text/css",
                 ".js" => "application/javascript",
+                ".json" => "application/json",
+                ".xml" => "application/xml",
+                ".csv" => "text/csv",
                 ".txt" => "text/plain",
+                ".pdf" => "application/pdf",
+
+                // Obrazy
                 ".png" => "image/png",
                 ".jpg" or ".jpeg" => "image/jpeg",
                 ".gif" => "image/gif",
                 ".svg" => "image/svg+xml",
+                ".webp" => "image/webp",
+                ".ico" => "image/x-icon",
+
+                // Czcionki
+                ".woff" => "font/woff",
+                ".woff2" => "font/woff2",
+                ".ttf" => "font/ttf",
+                ".otf" => "font/otf",
+                ".eot" => "application/vnd.ms-fontobject",
+
+                // Wideo i audio
+                ".mp4" => "video/mp4",
+                ".webm" => "video/webm",
+                ".ogg" => "audio/ogg",
+                ".mp3" => "audio/mpeg",
+
+                // Archiwa
+                ".zip" => "application/zip",
+                ".tar" => "application/x-tar",
+                ".rar" => "application/vnd.rar",
+                ".7z" => "application/x-7z-compressed",
+
+                // Domyślna wartość dla nieznanych typów
                 _ => "application/octet-stream",
             };
         }
