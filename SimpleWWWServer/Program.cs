@@ -31,12 +31,12 @@ namespace SimpleWWWServer
 
             foreach (var server in config!.Servers)
             {
-                Thread serverThread = new Thread(() => StartServer(server.Port, server.BaseDir, server.AllowedExtensions));
+                Thread serverThread = new Thread(() => StartServer(server.Port, server.BaseDir, server.AllowedExtensions,server.DownloadableExtensions));
                 serverThread.Start();
             }
         }
 
-        static void StartServer(int port, string baseDir, string[] allowedExtensions)
+        static void StartServer(int port, string baseDir, string[] allowedExtensions, string[] downloadableExtensions)
         {
             if (!Directory.Exists(baseDir))
                 Directory.CreateDirectory(baseDir);
@@ -52,7 +52,7 @@ namespace SimpleWWWServer
                 {
                     TcpClient client = listener.AcceptTcpClient();
                     //handle request
-                    Thread clientThread = new Thread(() => HandleClient(client, baseDir, allowedExtensions));
+                    Thread clientThread = new Thread(() => HandleClient(client, baseDir, allowedExtensions,downloadableExtensions));
                     clientThread.Start();
                 }
             }
@@ -66,7 +66,7 @@ namespace SimpleWWWServer
             }
         }
 
-        static void HandleClient(TcpClient client, string baseDir, string[] allowedExtensions)
+        static void HandleClient(TcpClient client, string baseDir, string[] allowedExtensions, string[] downloadableExtensions)
         {
             try
             {
@@ -116,12 +116,14 @@ namespace SimpleWWWServer
                         sanitizedPath = indexPath;
                     else
                     {
-                        RedirectToErrorPage(stream, 404, baseDir);
+                        GenerateFileExplorerPage(stream, sanitizedPath, path.TrimStart('/'));
                         return;
                     }
                 }
 
                 string fileExtension = Path.GetExtension(sanitizedPath).ToLower();
+
+
                 if (!File.Exists(sanitizedPath) || Array.IndexOf(allowedExtensions, fileExtension) == -1)
                 {
                     RedirectToErrorPage(stream,404,baseDir);
@@ -130,7 +132,7 @@ namespace SimpleWWWServer
 
                 string contentType = GetContentType(sanitizedPath);
                 byte[] body = method == "GET" ? File.ReadAllBytes(sanitizedPath) : new byte[1];
-                SendResponse(stream, 200, "OK", body, contentType);
+                SendResponse(stream, 200, "OK", body, contentType,sanitizedPath,downloadableExtensions);
             }
             catch (Exception ex)
             {
@@ -158,20 +160,92 @@ namespace SimpleWWWServer
             SendResponse(stream, statusCode, "Error", body, contentType);
         }
 
-        static void SendResponse(NetworkStream stream, int statusCode, string statusMessage, byte[] body = null!, string contentType = "text/plain")
+        static void SendResponse(NetworkStream stream, int statusCode, string statusMessage, byte[] body = null!, string contentType = "text/plain", string filePath = "", params string[] downloadableExtensions)
         {
             StringBuilder response = new StringBuilder();
             response.AppendLine($"HTTP/1.1 {statusCode} {statusMessage}");
             response.AppendLine($"Content-Type: {contentType}");
+
+            if (ShouldDownloadFile(filePath,downloadableExtensions))
+                response.AppendLine("Content-Disposition: attachment");
+
             if (body != null)
                 response.AppendLine($"Content-Length: {body.Length}");
+
             response.AppendLine();
 
             byte[] headers = Encoding.UTF8.GetBytes(response.ToString());
             stream.Write(headers, 0, headers.Length);
 
             if (body != null)
+            {
                 stream.Write(body, 0, body.Length);
+            }
+        }
+
+        static bool ShouldDownloadFile(string filePath, string[] downloadableExtensions)
+        {
+            string extension = Path.GetExtension(filePath).ToLower();
+
+            return downloadableExtensions.Contains(extension);
+        }
+
+        static void GenerateFileExplorerPage(NetworkStream stream, string directoryPath, string relativePath)
+        {
+            try
+            {
+                // Pobieramy wszystkie foldery i pliki w danym katalogu
+                string[] directories = Directory.GetDirectories(directoryPath);
+                string[] files = Directory.GetFiles(directoryPath);
+
+                string parentDirectory = Path.GetDirectoryName(directoryPath);
+                string parentDirectoryRelativePath = string.IsNullOrEmpty(relativePath) ? "/" : Path.GetDirectoryName(relativePath);
+
+                string htmlContent = "<html><head><title>File Explorer</title></head><body>";
+
+                if (!string.IsNullOrEmpty(parentDirectory))
+                {
+                    htmlContent += $"<h1>File Explorer: {relativePath}</h1>";
+                    htmlContent += $"<a href=\"/{parentDirectoryRelativePath}\">.. (Parent Directory)</a><br><br>";
+                }
+
+                if (directories.Length > 0)
+                {
+                    htmlContent += "<h3>Directories:</h3><ul>";
+                    foreach (var dir in directories)
+                    {
+                        string dirName = Path.GetFileName(dir);
+                        string relativeDirPath = Path.Combine(relativePath, dirName);
+                        htmlContent += $"<li><a href=\"/{relativeDirPath}\">[DIR] {dirName}</a></li>";
+                    }
+                    htmlContent += "</ul>";
+                }
+
+                if (files.Length > 0)
+                {
+                    htmlContent += "<h3>Files:</h3><ul>";
+                    foreach (var file in files)
+                    {
+                        string fileName = Path.GetFileName(file);
+                        string relativeFilePath = Path.Combine(relativePath, fileName);
+                        htmlContent += $"<li><a href=\"/{relativeFilePath}\">{fileName}</a></li>";
+                    }
+                    htmlContent += "</ul>";
+                }
+                else
+                {
+                    htmlContent += "<p>No files found.</p>";
+                }
+
+                htmlContent += "</body></html>";
+
+                byte[] body = Encoding.UTF8.GetBytes(htmlContent);
+                SendResponse(stream, 200, "OK", body, "text/html");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error generating file explorer page: {ex.Message}");
+            }
         }
 
         static string GetContentType(string filePath)

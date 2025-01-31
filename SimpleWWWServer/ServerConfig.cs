@@ -6,5 +6,7 @@
         public string BaseDir { get; set; }
 
         public string[] AllowedExtensions { get; set; }
+
+        public string[] DownloadableExtensions { get; set; }
     }
 }
